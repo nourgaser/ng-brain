@@ -3,10 +3,10 @@ FROM ghcr.io/silverbulletmd/silverbullet:latest
 # Install Git
 RUN apk add --no-cache git
 
-# 1. Configure Identity (System-Wide)
-# We use --system instead of --global so it applies to User 1001 too
+# Configure Identity
 RUN git config --system user.email "bot@ng-brain.local" && \
     git config --system user.name "Librarian Bot"
 
-# 2. Whitelist content directory
-RUN git config --system --add safe.directory /content
+# SAFETY FIX: Whitelist BOTH the Source (/content) and the Mirror (/space)
+RUN git config --system --add safe.directory /content && \
+    git config --system --add safe.directory /space

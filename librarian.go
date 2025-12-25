@@ -223,18 +223,23 @@ func linkAllFiles(srcDir, destDir string) {
 	files, err := ioutil.ReadDir(srcDir)
 	if err != nil { return }
 	
-	// Check if this is the Writer space
-	isWriter := strings.HasSuffix(destDir, "/writer")
+	// Check if this is the Writer space (safer check)
+	isWriter := filepath.Base(destDir) == "writer"
 
 	for _, f := range files {
 		name := f.Name()
 		
-		// Skip config/system files
+		// Skip config
 		if name == "permissions.yaml" { continue }
 
-		// ONLY link .git for the Writer (Admin)
+		// Handle .git explicitly
 		if name == ".git" {
-			if !isWriter { continue }
+			if isWriter {
+				// Force link .git for writer
+				linkFile(name, destDir)
+				fmt.Println("   🔗 Linked .git repository to writer")
+			}
+			continue
 		}
 
 		linkFile(name, destDir)
