@@ -1,25 +1,19 @@
-# Stage 1: Build the Go Binary
+# Stage 1: Build Go Binary
 FROM golang:alpine AS builder
 WORKDIR /app
-
-# Install git for fetching dependencies
 RUN apk add --no-cache git
-
-# Copy dependency files first (for better caching)
 COPY go.mod go.sum ./
 RUN go mod download
-
-# Copy source and build
 COPY librarian.go .
-# CGO_ENABLED=0 creates a static binary that works anywhere
+# Static build
 RUN CGO_ENABLED=0 go build -o librarian librarian.go
 
-# Stage 2: The Runtime Image
+# Stage 2: Runtime
 FROM alpine:latest
 WORKDIR /app
 
-# Copy the binary from the builder stage
-COPY --from=builder /app/librarian .
+# INSTALL DOCKER CLI + CURL (For talking to Nginx)
+RUN apk add --no-cache docker-cli curl
 
-# Command to run
+COPY --from=builder /app/librarian .
 CMD ["./librarian"]

@@ -9,12 +9,17 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/login.html:/usr/share/nginx/html/login.html:ro
+      - ./nginx/not_found.html:/usr/share/nginx/html/not_found.html:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d
     environment:
-      - VIRTUAL_HOST=docs2.nourgaser.com,alice.docs2.nourgaser.com
-      - LETSENCRYPT_HOST=docs2.nourgaser.com,alice.docs2.nourgaser.com
+      - VIRTUAL_HOST=docs2.nourgaser.com,*.docs2.nourgaser.com
+      - LETSENCRYPT_HOST=docs2.nourgaser.com,*.docs2.nourgaser.com
       - PORT=80
     expose:
       - "80"
+    networks:
+      - default      # Talk to Writer/Reader/Alice
+      - proxy-net    # Talk to Host Nginx Proxy
 
   sb-writer:
     image: ghcr.io/silverbulletmd/silverbullet
@@ -48,25 +53,19 @@ services:
       dockerfile: Dockerfile.librarian
     container_name: ng-librarian
     restart: always
-    user: "1001:1001"
+    user: "0:0"  # <--- MUST RUN AS ROOT to access Docker Socket!
     volumes:
-      - ./content:/content # Read config
-      - ./spaces:/spaces # Write symlinks
-
-  sb-alice:
-    image: ghcr.io/silverbulletmd/silverbullet
-    container_name: ng-alice
-    restart: always
-    environment:
-      - PUID=1001
-      - PGID=1001
-      # IMPORTANT: If we use path-based routing (/portal/alice), 
-      # we assume the app handles relative links well.
-    volumes:
-      - ./spaces/alice:/space
       - ./content:/content
+      - ./spaces:/spaces
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    environment:
+      - HOST_ROOT_DIR=/home/nour/docker/ng-brain
 
 networks:
   default:
+    name: ng-brain_default
+
+  proxy-net:
     external: true
     name: nginx-proxy
