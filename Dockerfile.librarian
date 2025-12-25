@@ -1,0 +1,25 @@
+# Stage 1: Build the Go Binary
+FROM golang:alpine AS builder
+WORKDIR /app
+
+# Install git for fetching dependencies
+RUN apk add --no-cache git
+
+# Copy dependency files first (for better caching)
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source and build
+COPY librarian.go .
+# CGO_ENABLED=0 creates a static binary that works anywhere
+RUN CGO_ENABLED=0 go build -o librarian librarian.go
+
+# Stage 2: The Runtime Image
+FROM alpine:latest
+WORKDIR /app
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/librarian .
+
+# Command to run
+CMD ["./librarian"]

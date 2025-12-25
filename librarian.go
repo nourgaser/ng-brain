@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -20,9 +21,9 @@ type Config struct {
 }
 
 const (
-	RepoRoot   = "content"
-	SpacesRoot = "spaces"
-	ConfigFile = "content/permissions.yaml"
+	RepoRoot   = "/content"
+	SpacesRoot = "/spaces"
+	ConfigFile = "/content/permissions.yaml"
 )
 
 func main() {
@@ -38,9 +39,8 @@ func main() {
 	}
 	defer watcher.Close()
 
-	// Watch the Config File
-	// Note: Editors often "rename" files on save, so we watch the folder
-	err = watcher.Add(RepoRoot) 
+	// Watch the Content Folder
+	err = watcher.Add(RepoRoot)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -55,12 +55,11 @@ func main() {
 				if !ok {
 					return
 				}
-				// If permissions.yaml changes
+				// Detect changes to permissions.yaml
 				if filepath.Base(event.Name) == "permissions.yaml" {
 					if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
 						fmt.Println("⚡ Config change detected. Rebuilding...")
-						// Small sleep to ensure write is complete
-						time.Sleep(100 * time.Millisecond)
+						time.Sleep(100 * time.Millisecond) // Debounce
 						rebuild()
 					}
 				}
@@ -92,10 +91,15 @@ func rebuild() {
 	for spaceName, rules := range config.Spaces {
 		spaceDir := filepath.Join(SpacesRoot, spaceName)
 
-		// 1. Wipe Directory (Safety check: ensure we are in spaces folder)
-		if stringsContains(spaceDir, "spaces") { 
-             os.RemoveAll(spaceDir) 
-        }
+		// Safety Check: Ensure we are only deleting inside /spaces
+		// This prevents config errors from wiping your hard drive
+		if !strings.HasPrefix(spaceDir, "/spaces") {
+			fmt.Printf("   ! Safety Block: Refusing to wipe %s\n", spaceDir)
+			continue
+		}
+
+		// 1. Wipe Directory (Clean Slate)
+		os.RemoveAll(spaceDir)
 		if err := os.MkdirAll(spaceDir, 0755); err != nil {
 			fmt.Printf("   ! Failed to create dir: %v\n", err)
 			continue
@@ -110,7 +114,7 @@ func rebuild() {
 			linkFile(relPath, spaceDir)
 		}
 	}
-    fmt.Println("✅ Spaces Synced.")
+	fmt.Println("✅ Spaces Synced.")
 }
 
 func linkAllFiles(srcDir, destDir string) {
@@ -119,23 +123,22 @@ func linkAllFiles(srcDir, destDir string) {
 		return
 	}
 	for _, f := range files {
-		if f.Name() == ".git" || f.Name() == "permissions.yaml" {
+		name := f.Name()
+		if name == ".git" || name == "permissions.yaml" {
 			continue
 		}
-		linkFile(f.Name(), destDir)
+		linkFile(name, destDir)
 	}
 }
 
 func linkFile(relPath, spaceDir string) {
+	// Inside the container, Content is mapped to /content
+	// Spaces are mapped to /spaces/xyz
+	// So the relative link from /spaces/xyz/file -> /content/file is:
 	target := filepath.Join("../../content", relPath)
 	linkPath := filepath.Join(spaceDir, filepath.Base(relPath))
 
 	if err := os.Symlink(target, linkPath); err != nil {
-		// fmt.Printf("   ! Link failed for %s: %v\n", relPath, err)
+		fmt.Printf("   ! Link failed for %s: %v\n", relPath, err)
 	}
-}
-
-// Helper (since we removed strings package import earlier, added simple check)
-func stringsContains(s, substr string) bool {
-    return len(s) >= len(substr) && s[0:len(substr)] == substr || len(s) > 0 // Simplified check
 }

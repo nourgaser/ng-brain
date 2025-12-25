@@ -42,6 +42,17 @@ services:
       # Mount content here too, so public symlinks resolve
       - ./content:/content
 
+  librarian:
+    build:
+      context: .
+      dockerfile: Dockerfile.librarian
+    container_name: ng-librarian
+    restart: always
+    user: "1001:1001"
+    volumes:
+      - ./content:/content # Read config
+      - ./spaces:/spaces # Write symlinks
+
 networks:
   default:
     external: true
