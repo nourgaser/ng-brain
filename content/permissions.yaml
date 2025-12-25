@@ -1,0 +1,17 @@
+# ng-brain Access Control Rules
+
+spaces:
+  # 1. The Public Reader (sb-reader)
+  # This controls what anonymous users see at docs2.nourgaser.com
+  public:
+    paths:
+      - "index.md"
+      - "assets/"
+      - "CONFIG.md" # Required for SilverBullet to boot
+      # - "journal.md"
+
+  # 2. The Admin Writer (sb-writer)
+  # This controls what YOU see when logged in.
+  writer:
+    paths:
+      - "/" # The "Root" wildcard: Access everything
