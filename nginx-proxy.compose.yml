@@ -1,0 +1,48 @@
+services:
+  nginx-proxy:
+    container_name: nginx-proxy
+    image: nginxproxy/nginx-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - conf:/etc/nginx/conf.d
+      - vhost:/etc/nginx/vhost.d
+      - certs:/etc/nginx/certs
+      - html:/usr/share/nginx/html
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    networks:
+      - default
+
+  nginx-proxy-acme:
+    container_name: nginx-proxy-acme
+    image: nginxproxy/acme-companion
+    restart: always
+    volumes_from:
+      - nginx-proxy
+    volumes:
+      - certs:/etc/nginx/certs:rw
+      - acme:/etc/acme.sh
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - nginx-proxy
+    environment:
+      ACME_CHALLENGE: DNS-01
+      DEFAULT_EMAIL: ${DEFAULT_EMAIL:?set DEFAULT_EMAIL}
+      ACMESH_DNS_API_CONFIG: |-
+        DNS_API: dns_cf
+        CF_Token: ${CF_Token:?set CF_Token}
+    networks:
+      - default
+
+volumes:
+  conf:
+  certs:
+  vhost:
+  html:
+  acme:
+
+networks:
+  default:
+    name: nginx-proxy

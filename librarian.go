@@ -30,10 +30,14 @@ const (
 )
 
 var HostRootDir = os.Getenv("HOST_ROOT_DIR")
+var SpaceDomainSuffix = strings.TrimPrefix(os.Getenv("SPACE_DOMAIN_SUFFIX"), ".")
 
 func main() {
 	if HostRootDir == "" {
 		log.Fatal("❌ HOST_ROOT_DIR env var is missing!")
+	}
+	if SpaceDomainSuffix == "" {
+		log.Fatal("❌ SPACE_DOMAIN_SUFFIX env var is missing!")
 	}
 	fmt.Println("📚 Librarian Orchestrator: Started")
 	rebuild()
@@ -199,7 +203,7 @@ func ensureContainer(user string, password string) {
 }
 
 func generateNginxConfig(user string) {
-	domain := fmt.Sprintf("%s.docs2.nourgaser.com", user)
+	domain := fmt.Sprintf("%s.%s", user, SpaceDomainSuffix)
 	container := fmt.Sprintf("ng-space-%s", user)
 
 	configContent := fmt.Sprintf(`

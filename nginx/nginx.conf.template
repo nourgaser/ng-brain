@@ -4,11 +4,10 @@ http {
     upstream sb-writer { server sb-writer:3000; }
     upstream sb-reader { server sb-reader:3000; }
 
-    # 1. PUBLIC BRAIN (Root Domain)
-    # Pure Read-Only. No login logic.
+    # Public brain (read-only)
     server {
         listen 80;
-        server_name docs2.nourgaser.com;
+        server_name ${PUBLIC_HOST};
 
         location / {
             proxy_pass http://sb-reader;
@@ -19,11 +18,10 @@ http {
         }
     }
 
-    # 2. ADMIN BRAIN (Subdomain)
-    # Protected by SilverBullet Native Auth
+    # Admin brain (write-enabled)
     server {
         listen 80;
-        server_name admin.docs2.nourgaser.com;
+        server_name ${ADMIN_HOST};
 
         location / {
             proxy_pass http://sb-writer;
@@ -34,17 +32,17 @@ http {
         }
     }
 
-    # 3. CATCH-ALL (404 Page)
+    # Catch-all for unknown spaces
     server {
         listen 80;
-        server_name *.docs2.nourgaser.com;
+        server_name *.${SPACE_DOMAIN_SUFFIX};
         root /usr/share/nginx/html;
-        
+
         location / { return 404; }
         error_page 404 /not_found.html;
         location = /not_found.html { internal; }
     }
 
-    # 4. DYNAMIC USERS
-    include /etc/nginx/conf.d/*.conf; 
+    # Dynamic users
+    include /etc/nginx/conf.d/*.conf;
 }

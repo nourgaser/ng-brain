@@ -1,3 +1,6 @@
 content
 spaces
 nginx/conf.d
+.env
+.env.*
+!.env.example
