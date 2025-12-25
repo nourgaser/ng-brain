@@ -1,9 +1,11 @@
 services:
-  # 1. THE GATEKEEPER
   gatekeeper:
     image: nginx:alpine
     container_name: ng-gatekeeper
     restart: always
+    depends_on:
+      - sb-writer
+      - sb-reader
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/login.html:/usr/share/nginx/html/login.html:ro
@@ -14,28 +16,31 @@ services:
     expose:
       - "80"
 
-  # 2. THE WRITER (Admin Mode)
   sb-writer:
     image: ghcr.io/silverbulletmd/silverbullet
     container_name: ng-writer
     restart: always
+    environment:
+      - PUID=1001
+      - PGID=1001
     volumes:
-      # Mount the Writer Space (Has all symlinks)
+      # 1. The Virtual View (Where the symlinks live)
       - ./spaces/writer:/space
-    # No Auth here because Nginx protects it. 
-    # But for extra security in production, we'd add Basic Auth between Nginx->SB.
+      # 2. The Actual Data (So the symlinks work!)
+      - ./content:/content
 
-  # 3. THE READER (Guest Mode)
   sb-reader:
     image: ghcr.io/silverbulletmd/silverbullet
     container_name: ng-reader
     restart: always
-    # Force Read-Only Mode at the App level
     environment:
       - SB_READ_ONLY=true
+      - PUID=1001
+      - PGID=1001
     volumes:
-      # Mount the Public Space (Has only public symlinks)
-      - ./spaces/public:/space:ro
+      - ./spaces/public:/space
+      # Mount content here too, so public symlinks resolve
+      - ./content:/content
 
 networks:
   default:
