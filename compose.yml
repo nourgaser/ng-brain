@@ -37,10 +37,8 @@ services:
       - PGID=1001
       - SB_USER=${SB_WRITER_USER:?set SB_WRITER_USER}:${SB_WRITER_PASSWORD:?set SB_WRITER_PASSWORD}
     volumes:
-      # 1. The Virtual View (Where the symlinks live)
-      - ./spaces/writer:/space
-      # 2. The Actual Data (So the symlinks work!)
-      - ./content:/content
+      - ./content:/space 
+      - ./content:/content # Lua script compatibility
 
   sb-reader:
     image: ghcr.io/silverbulletmd/silverbullet

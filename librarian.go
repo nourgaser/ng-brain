@@ -99,6 +99,8 @@ func syncFiles(config Config) {
 	os.Chmod(sharedLibDir, 0777)
 
 	for spaceName, rules := range config.Spaces {
+		if spaceName == "writer" { continue }
+		
 		spaceDir := filepath.Join(SpacesRoot, spaceName)
 		
 		os.MkdirAll(spaceDir, 0755)
