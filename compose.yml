@@ -71,41 +71,23 @@ services:
       - HOST_ROOT_DIR=${HOST_ROOT_DIR:?set HOST_ROOT_DIR}
       - SPACE_DOMAIN_SUFFIX=${SPACE_DOMAIN_SUFFIX:?set SPACE_DOMAIN_SUFFIX}
 
-  # THE GHOST WATCHER
-  # Runs 24/7. Checks for changes every 5 minutes. Commits them.
   git-watcher:
     image: alpine/git
     container_name: ng-watcher
     restart: always
-    user: "1001:1001"
+    user: "0:0"
     environment:
-      - HOME=/tmp # <--- THE FIX: Gives git a place to write global config
+      - CONTENT_REMOTE=${CONTENT_REMOTE:?set CONTENT_REMOTE}
+      - CONTENT_BRANCH=${CONTENT_BRANCH:-main}
+      - CONTENT_REMOTE_SSH_KEY=${CONTENT_REMOTE_SSH_KEY:-}
+      - CONTENT_REMOTE_SSH_KNOWN_HOSTS=${CONTENT_REMOTE_SSH_KNOWN_HOSTS:-}
+      - HOME=/home/git
     volumes:
       - ./content:/repo
+      - ./scripts/git-watcher.sh:/scripts/git-watcher.sh:ro
     entrypoint:
       - /bin/sh
-      - -c
-      - |
-        echo "👻 Git Watcher Started..."
-        cd /repo
-        
-        # 1. Trust this directory (Global config written to /tmp/.gitconfig)
-        git config --global --add safe.directory /repo
-
-        # 2. Set Identity (Local config written to /repo/.git/config)
-        git config user.email "watcher@ng-brain.local"
-        git config user.name "Watcher Bot"
-
-        # 3. The Loop
-        while true; do
-          if [ -n "$(git status --porcelain)" ]; then
-             echo "📝 Changes detected. Committing..."
-             git add .
-             git commit -m "Auto-Snapshot: $(date '+%Y-%m-%d %H:%M:%S')"
-             echo "✅ Snapshot created."
-          fi
-          sleep 300
-        done
+      - /scripts/git-watcher.sh
 
 networks:
   default:
