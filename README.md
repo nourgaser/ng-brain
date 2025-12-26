@@ -1,79 +1,127 @@
-# ng-brain v2
+# 🧠 ng-brain
+> A self-hosted, text-first digital garden OS.
+> Powered by SilverBullet, Nginx, and Docker.
+> 
+ng-brain is an opinionated, privacy-focused architecture for hosting a digital second brain. It separates the Engine (this repository) from the Content (your data), allowing you to upgrade, destroy, and replicate the infrastructure without ever touching your actual notes.
+It transforms a standard SilverBullet instance into a multi-user platform with public/private access, automatic background versioning, and per-user permission management.
 
-A self-hosted SilverBullet stack with a writeable admin brain, a public read-only brain, and per-user spaces provisioned on the fly. Gatekeeper (NGINX) fronts everything, Librarian watches your permissions file and spawns SilverBullet containers for each user, and Git Watcher snapshots content automatically.
+## ✨ Features
 
-## What this ships
-- Gatekeeper: NGINX terminator/router with templated hosts and catch-all handling for unknown spaces.
-- Writer: SilverBullet instance with login (`SB_USER`) for editing the source of truth under `content/`.
-- Reader: SilverBullet instance that exposes the public, read-only brain.
-- Librarian: Go daemon that watches `content/permissions.yaml`, manages per-user containers, and renders per-user NGINX configs.
-- Git Watcher: commits changes in `content/` every 5 minutes when there is a diff.
+ * 🏰 The Gatekeeper: A unified Nginx reverse proxy that handles traffic routing.
+   * docs.yourdomain.com → Public Reader (Read-only, high performance).
+   * admin.yourdomain.com → Writer (Authenticated, full access).
+   * alice.yourdomain.com → User Space (Sandboxed subdomains).
+ * 🤖 The Librarian: A custom Go orchestrator that watches a permissions.yaml file. It dynamically spins up and kills Docker containers for users (Alice, Bob) and manages their file system symlinks in real-time.
+ * 👻 Ghost Watcher: An invisible background service (Alpine/Git) that monitors your content directory. It runs a silent "Snapshot" every 5 minutes, ensuring you never lose a thought even if you forget to save or commit.
+ * ⏳ Time Travel UI: A custom Space Lua plugin that provides a sidebar with commit history, instantaneous diffs, and read-only views of past file versions—all running locally without a GitHub UI.
+ * 🔌 Centralized Tooling: Plugins and Libraries (Mermaid, Excalidraw, TreeView) are managed centrally. You update them once in the Core, and they propagate to all users instantly.
 
-## Prerequisites
-- Docker + Docker Compose
-- An external Docker network (default `nginx-proxy`) if you are fronting this with a reverse proxy like `nginx-proxy`/`traefik`. (See [nginx-proxy.compose.yml](/nginx-proxy.compose.yml)).
-- DNS records for your chosen hosts (public, admin, and wildcard for user spaces).
+## 🏗 Architecture
 
-## Configure
-1. Copy the env template and fill it:
-   ```sh
-   cp .env.example .env
-   ```
-2. Edit `.env` with your domains and credentials:
-   - `PUBLIC_HOST` – read-only site (e.g., `brain.example.com`).
-   - `ADMIN_HOST` – writer site (e.g., `admin.brain.example.com`).
-   - `SPACE_DOMAIN_SUFFIX` – wildcard base for user spaces (e.g., `spaces.brain.example.com`, yielding `<user>.spaces.brain.example.com`).
-   - `VIRTUAL_HOST` / `LETSENCRYPT_HOST` – comma-separated list for your proxy (commonly the three hosts above).
-   - `SB_WRITER_USER` / `SB_WRITER_PASSWORD` – admin credentials for the writer instance.
-   - `HOST_ROOT_DIR` – absolute host path to this repo (so Librarian can bind-mount correctly).
-3. Prepare directories (Compose mounts them):
-   ```sh
-   mkdir -p content spaces nginx/conf.d
-   ```
-4. Create `content/permissions.yaml` to describe spaces:
-   ```yaml
-   spaces:
-     public:
-       password: ""      # ignored for public
-       paths: ["/"]
-     writer:
-       password: ""      # managed by SB_WRITER_USER/PASSWORD
-       paths: ["/"]
-     alice:
-       password: super-secret
-       paths: ["Notes", "Projects"]
-   ```
-   - `paths` are folders under `content/` that get symlinked into each space.
-   - Any space other than `public`/`writer` gets its own SilverBullet container and NGINX vhost at `<space>.${SPACE_DOMAIN_SUFFIX}`.
+ng-brain follows a "Split-Brain" philosophy:
+ * The Engine (Outer Repo): This repository. It contains the logic, Docker configurations, Nginx templates, and the Librarian binary. It is ephemeral.
+ * The Content (Inner Repo): A standard Git repository living at ./content. This is your data. It is .gitignored by the Engine.
 
-## Run
-```sh
-docker compose up -d
+```mermaid
+graph TD
+    User[User] -->|https| Nginx[Gatekeeper (Nginx)]
+    Nginx -->|admin.com| Writer[SB Writer (Admin)]
+    Nginx -->|docs.com| Reader[SB Reader (Public)]
+    Nginx -->|alice.com| Alice[SB Alice (Restricted)]
+    
+    subgraph "Infrastructure"
+        Librarian[The Librarian (Go)] -->|Watches| Perms[permissions.yaml]
+        Librarian -->|Spawns| Alice
+        Ghost[Ghost Watcher] -->|Commits| Content
+    end
+
+    subgraph "Data Persistence"
+        Writer -->|Mounts| Content[./content (Git Repo)]
+        Reader -->|Mounts| Content
+        Alice -->|Symlinks| Content
+    end
 ```
-- Gatekeeper renders `nginx/nginx.conf.template` with your env vars before starting NGINX.
-- Librarian watches `content/permissions.yaml`; changes trigger container and vhost updates automatically.
-- Git Watcher commits `content/` on change; adjust or disable in `compose.yml` if undesired.
 
-## How routing works
-- Public: `${PUBLIC_HOST}` → `sb-reader`
-- Admin: `${ADMIN_HOST}` → `sb-writer`
-- Spaces: `<user>.${SPACE_DOMAIN_SUFFIX}` → `ng-space-<user>` (spawned by Librarian)
-- Unknown spaces fall through to the custom 404 page at `nginx/not_found.html`.
+## 🚀 Getting Started
 
-## Security notes
-- Keep `.env` private; `.gitignore` already excludes it.
-- Rotate `SB_WRITER_PASSWORD` after cloning; it is your admin credential.
-- Passwords in `permissions.yaml` are mounted into containers as `SB_USER=<user>:<password>`; treat that file as sensitive.
+### 0. Prerequisites
+ * Docker & Docker Compose
+ * A domain name (with wildcard DNS *.yourdomain.com pointing to your server)
 
-## Useful paths
-- Docker Compose: `compose.yml`
-- NGINX template: `nginx/nginx.conf.template`
-- Librarian daemon: `librarian.go`
-- Login page: `nginx/login.html`
-- Custom 404: `nginx/not_found.html`
-- nginx-proxy Docker Compose: `nginx-proxy.compose.yml`
+### 1. Installation
+#### Clone the Engine
+git clone https://github.com/nourgaser/ng-brain.git
+cd ng-brain
 
-## Troubleshooting
-- Ensure `HOST_ROOT_DIR` matches the absolute path to this repo on the host; mismatches break volume mounts for per-user containers.
-- If using an external reverse proxy, confirm the shared Docker network (`proxy-net` by default) exists: `docker network create nginx-proxy`.
-- Validate env substitution: `docker compose config` to render the final service definitions.
+### Create the Content Directory (Your inner brain)
+mkdir content
+cd content && git init && cd ..
+
+### 2. Configuration
+Create a .env file based on the template:
+#### Domains
+PUBLIC_HOST=docs.nourgaser.com
+ADMIN_HOST=admin.nourgaser.com
+SPACE_DOMAIN_SUFFIX=docs.nourgaser.com
+
+#### Credentials
+SB_WRITER_USER=admin
+SB_WRITER_PASSWORD=change_this_immediately
+
+#### Infrastructure
+HOST_ROOT_DIR=/home/user/docker/ng-brain
+
+### 3. Permissions
+Define your users and their access levels in content/permissions.yaml. The Librarian will read this and auto-configure the system.
+
+```yaml
+spaces:
+  # Public View (Root Domain)
+  public:
+    paths:
+      - "index.md"
+      - "assets/"
+      - "Library/Core.md"
+
+  # A restricted user
+  alice:
+    password: "secret_password"
+    paths:
+      - "projects/secret-game/"
+      - "assets/"
+```
+
+### 4. Launch
+docker compose up -d
+
+### Access your Writer
+
+At https://admin.yourdomain.com and start writing!
+
+## 🛠 Advanced Usage
+
+### The "Ghost" Committer
+The ng-watcher service runs locally. It checks for changes every 5 minutes.
+ * Logs: docker logs -f ng-watcher
+ * Force Save: Open the Command Palette ###
+
+### (Cmd+K) and run Git: Snapshot Now.
+
+### The History Sidebar
+
+We include a custom Lua script (Library/GitManual.md) that renders a Git UI directly in the editor.
+ * Open any file.
+ * Run Git: History Sidebar.
+ * Click View to see past versions or Diff to see changes.
+## 🗺 Roadmap & To-Do
+
+The system is currently V1 (Local Only). Future plans include:
+ * [ ] GitHub 2-Way Sync: Replace the local "Ghost Watcher" with a sync agent that pushes/pulls from a private GitHub repository.
+ * [ ] Docker-in-Docker (DinD): Allow the Librarian to build custom per-user images on the fly.
+ * [ ] CI/CD Pipeline: Auto-deploy the Engine changes via GitHub Actions.
+ * [ ] Search: Implement a unified search index across all accessible spaces.
+ * [ ] Backup Strategy: Off-site automated backups of the content directory (S3/R2).
+
+##📄 License
+
+MIT License. Built on top of the incredible work by Zef Hemel (SilverBullet).
