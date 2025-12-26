@@ -77,6 +77,8 @@ services:
     restart: always
     user: "0:0"
     environment:
+      - DEFAULT_EMAIL=${DEFAULT_EMAIL:-bot@ng-brain.local}
+      
       - CONTENT_REMOTE=${CONTENT_REMOTE:?set CONTENT_REMOTE}
       - CONTENT_BRANCH=${CONTENT_BRANCH:-main}
       - CONTENT_REMOTE_SSH_KEY=${CONTENT_REMOTE_SSH_KEY:-}

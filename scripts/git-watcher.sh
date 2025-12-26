@@ -31,6 +31,19 @@ setup_ssh() {
   fi
 }
 
+setup_git() {
+  log "Configuring Git safe directories and identity..."
+  # 1. Fix the "Dubious Ownership" error
+  git config --global --add safe.directory "$REPO_DIR"
+  
+  # 2. Configure Identity (Required for commits)
+  git config --global user.email "$DEFAULT_EMAIL"
+  git config --global user.name "Brain Bot"
+  
+  # 3. Strategy: Rebase by default to keep history clean
+  git config --global pull.rebase true
+}
+
 bootstrap_repo() {
   cd "$REPO_DIR"
 
@@ -120,16 +133,34 @@ sync_repo() {
 }
 
 run_watch_loop() {
-  inotifywait -m -r -e close_write,create,delete,move --exclude '/\.git/' "$REPO_DIR" |
-  while read -r _; do
+  # Wait for events, but ignore the .git directory
+  # The 'read' with a timeout allows us to batch events slightly
+  inotifywait -m -r -e close_write,move,create,delete --exclude '/\.git/' "$REPO_DIR" | \
+  while read -r directory events filename; do
+    echo "Detected change in $directory$filename ($events)"
+    
+    # Simple Debounce: Wait 2 seconds. If more events come, they queue up, 
+    # but since sync_repo takes time, they will be processed in the next batch 
+    # or effectively ignored if git status shows clean.
+    sleep 2
+    
     sync_repo "fs-event"
+    
+    # SAFETY: Fix permissions so SilverBullet (User 1001) can still write
+    # after Root (User 0) pulled files.
+    chown -R 1001:1001 "$REPO_DIR" || true
   done
 }
 
 install_tools
 setup_ssh
+setup_git
 mkdir -p "$REPO_DIR"
 bootstrap_repo
-sync_repo "startup" &
+sync_repo "startup"
+
+log "Fixing ownership for user 1001..."
+chown -R 1001:1001 "$REPO_DIR"
+
 run_watch_loop
 wait
