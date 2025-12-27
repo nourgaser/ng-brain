@@ -26,7 +26,7 @@
 graph TD
     User[User] -->|https| Nginx[Gatekeeper]
     Nginx -->|admin.com| Writer[SB Admin]
-    Nginx -->|docs.com| Reader[SB Reader]
+    Nginx -->|docs.com| Public[SB Public]
     Nginx -->|alice.com| Alice[SB Alice]
     
     subgraph "Infrastructure"
@@ -37,7 +37,7 @@ graph TD
 
     subgraph "Data Persistence"
         Writer -->|Direct Mount| Content[./content]
-        Reader -->|Direct Mount| Content
+        Public -->|Direct Mount| Content
         Alice -->|Mounts| Home[./content/homes/alice]
         Home -.->|Symlinks| Project[./content/projects]
     end
@@ -91,7 +91,7 @@ Define users and their access levels in `content/permissions.yaml`.
 
 ```yaml
 spaces:
-  # Public Reader (Root Domain)
+  # Public (Root Domain)
   public:
     paths:
       - "index.md"

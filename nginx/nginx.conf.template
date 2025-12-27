@@ -2,7 +2,7 @@ events {}
 
 http {
     upstream sb-writer { server sb-writer:3000; }
-    upstream sb-reader { server sb-reader:3000; }
+    upstream sb-public { server sb-public:3000; }
 
     # Public brain (read-only)
     server {
@@ -10,7 +10,7 @@ http {
         server_name ${PUBLIC_HOST};
 
         location / {
-            proxy_pass http://sb-reader;
+            proxy_pass http://sb-public;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "Upgrade";
