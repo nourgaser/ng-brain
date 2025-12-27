@@ -15,7 +15,7 @@
 * **🏠 Persistent User Homes:** Users (Alice, Bob) get real, physical directories inside the repo (`content/homes/alice`). Their personal files persist, while shared projects are symlinked into their space.
 * **🛡️ Conflict Safety:** If a sync conflict occurs, the system automatically creates a `conflict-YYYY-MM-DD` branch on the remote to save your work, then resets local to `main` to prevent lockups.
 * **🤖 The Librarian:** A Go orchestrator that watches `permissions.yaml` to dynamically spin up/tear down user containers and manage symlinks in real-time.
-* **🏰 The Gatekeeper:** Unified Nginx reverse proxy that handles routing for public docs (`docs.domain`), admin writer (`admin.domain`), and user subdomains (`alice.domain`).
+* **🏰 The Gatekeeper:** Unified Nginx reverse proxy that handles routing for public docs (`docs.domain`) and user subdomains (`alice.domain`). Admins are regular users with elevated rights, not a separate host.
 * **⏳ Time Travel UI:** A custom Space Lua sidebar that provides commit history, instantaneous diffs, and read-only views of past file versions—all running locally.
 
 ## 🏗 Architecture
@@ -25,7 +25,6 @@
 ```mermaid
 graph TD
     User[User] -->|https| Nginx[Gatekeeper]
-    Nginx -->|admin.com| Writer[SB Admin]
     Nginx -->|docs.com| Public[SB Public]
     Nginx -->|alice.com| Alice[SB Alice]
     
@@ -36,7 +35,6 @@ graph TD
     end
 
     subgraph "Data Persistence"
-        Writer -->|Direct Mount| Content[./content]
         Public -->|Direct Mount| Content
         Alice -->|Mounts| Home[./content/homes/alice]
         Home -.->|Symlinks| Project[./content/projects]
@@ -66,7 +64,6 @@ Create a `.env` file. You **must** provide a remote Git repository (GitHub/GitLa
 ```ini
 # --- Identity & Domains ---
 PUBLIC_HOST=docs.nourgaser.com
-ADMIN_HOST=admin.nourgaser.com
 SPACE_DOMAIN_SUFFIX=nourgaser.com
 DEFAULT_EMAIL=bot@ng-brain.local
 
@@ -76,10 +73,6 @@ CONTENT_BRANCH=main
 # Optional: Base64 encoded SSH Key (if not mounting ~/.ssh)
 # CONTENT_REMOTE_SSH_KEY=...
 
-# --- Auth ---
-SB_WRITER_USER=admin
-SB_WRITER_PASSWORD=change_this_immediately
-
 # --- Infrastructure ---
 HOST_ROOT_DIR=/home/user/docker/ng-brain
 
@@ -87,7 +80,7 @@ HOST_ROOT_DIR=/home/user/docker/ng-brain
 
 ### 3. Permissions
 
-Define users and their access levels in `content/permissions.yaml`.
+Define users and their access levels in `content/permissions.yaml`. Set `admin: true` for users who should have full-repo access (including `.git`). Admin users work directly on the real content directory (no virtual space), and any `paths` entries are ignored for them.
 
 ```yaml
 spaces:
@@ -97,13 +90,10 @@ spaces:
       - "index.md"
       - "assets/"
 
-  # Restricted User (Subdomain: alice.yourdomain.com)
+  # Admin-capable user (subdomain: alice.yourdomain.com)
   alice:
+    admin: true
     password: "secret_password"
-    paths:
-      # These appear inside Alice's home directory
-      - "projects/secret-game/"
-      - "assets/"
 
 ```
 
@@ -119,7 +109,7 @@ docker compose up -d
 To enable instant updates from GitHub (e.g., when you edit on mobile or VS Code), add a Webhook:
 
 1. Go to your GitHub Repo **Settings** -> **Webhooks**.
-2. **Payload URL:** `https://admin.yourdomain.com/_github_webhook`
+2. **Payload URL:** `https://docs.yourdomain.com/_github_webhook` (use your `PUBLIC_HOST`).
 3. **Content type:** `application/json`
 4. **Events:** Just the `push` event.
 

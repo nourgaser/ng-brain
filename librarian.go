@@ -17,6 +17,7 @@ import (
 // Updated Config Struct with Password
 type Config struct {
 	Spaces map[string]struct {
+		Admin    bool     `yaml:"admin"`
 		Password string   `yaml:"password"` // <--- Captured here
 		Paths    []string `yaml:"paths"`
 	} `yaml:"spaces"`
@@ -98,9 +99,21 @@ func syncFiles(config Config) {
 	os.Chmod(sharedPlugDir, 0777)
 	os.Chmod(sharedLibDir, 0777)
 
+	// Ensure spaces root exists and is writable (containers run as 1001)
+	os.MkdirAll(SpacesRoot, 0777)
+	os.Chmod(SpacesRoot, 0777)
+
 	for spaceName, rules := range config.Spaces {
-		if spaceName == "writer" { continue }
-		
+		isAdmin := rules.Admin
+		if isAdmin && len(rules.Paths) > 0 {
+			fmt.Printf("⚠️ paths is ignored for admin space '%s' (admin implies full access)\n", spaceName)
+		}
+
+		if isAdmin {
+			// Admins work directly in /content; no virtual space.
+			continue
+		}
+
 		spaceDir := filepath.Join(SpacesRoot, spaceName)
 		
 		os.MkdirAll(spaceDir, 0755)
@@ -118,9 +131,10 @@ func syncFiles(config Config) {
 		linkFile("Library", spaceDir)
 		
 		// 4. User Links (from permissions.yaml)
-		for _, relPath := range rules.Paths {
+		pathsToLink := rules.Paths
+		for _, relPath := range pathsToLink {
 			if relPath == "/" {
-				linkAllFiles(RepoRoot, spaceDir)
+				linkAllFiles(RepoRoot, spaceDir, isAdmin)
 				continue
 			}
 			linkFile(relPath, spaceDir)
@@ -132,13 +146,13 @@ func orchestrate(config Config) {
 	validUsers := make(map[string]bool)
 
 	for spaceName, details := range config.Spaces {
-		if spaceName == "public" || spaceName == "writer" { continue }
+		if spaceName == "public" { continue }
 		
 		validUsers[spaceName] = true
 		fmt.Printf("⚙️  Orchestrating User: %s\n", spaceName)
 		
 		// Pass the password to the launcher
-		ensureContainer(spaceName, details.Password)
+		ensureContainer(spaceName, details.Password, details.Admin)
 		generateNginxConfig(spaceName)
 	}
 
@@ -165,7 +179,7 @@ func orchestrate(config Config) {
 	}
 }
 
-func ensureContainer(user string, password string) {
+func ensureContainer(user string, password string, isAdmin bool) {
 	containerName := fmt.Sprintf("ng-space-%s", user)
 
 	// STRATEGY CHANGE: Always remove and recreate.
@@ -178,6 +192,10 @@ func ensureContainer(user string, password string) {
 
 	spaceVol := fmt.Sprintf("%s/spaces/%s:/space", HostRootDir, user)
 	contentVol := fmt.Sprintf("%s/content:/content", HostRootDir)
+
+	if isAdmin {
+		spaceVol = fmt.Sprintf("%s/content:/space", HostRootDir)
+	}
 
 	args := []string{
 		"run", "-d",
@@ -210,27 +228,24 @@ func generateNginxConfig(user string) {
 
 	configContent := fmt.Sprintf(`
 server {
-    listen 80;
-    server_name %s;
-    location / {
-        proxy_pass http://%s:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
-    }
+	listen 80;
+	server_name %s;
+	location / {
+		proxy_pass http://%s:3000;
+		proxy_http_version 1.1;
+		proxy_set_header Upgrade $http_upgrade;
+		proxy_set_header Connection "Upgrade";
+		proxy_set_header Host $host;
+	}
 }
 `, domain, container)
 
 	ioutil.WriteFile(filepath.Join(NginxConfigDir, user+".conf"), []byte(configContent), 0644)
 }
 
-func linkAllFiles(srcDir, destDir string) {
+func linkAllFiles(srcDir, destDir string, includeGit bool) {
 	files, err := ioutil.ReadDir(srcDir)
 	if err != nil { return }
-	
-	// Check if this is the Writer space (safer check)
-	isWriter := filepath.Base(destDir) == "writer"
 
 	for _, f := range files {
 		name := f.Name()
@@ -240,10 +255,9 @@ func linkAllFiles(srcDir, destDir string) {
 
 		// Handle .git explicitly
 		if name == ".git" {
-			if isWriter {
-				// Force link .git for writer
+			if includeGit {
 				linkFile(name, destDir)
-				fmt.Println("   🔗 Linked .git repository to writer")
+				fmt.Printf("   🔗 Linked .git repository to %s\n", filepath.Base(destDir))
 			}
 			continue
 		}

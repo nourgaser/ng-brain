@@ -4,7 +4,6 @@ services:
     container_name: ng-gatekeeper
     restart: always
     depends_on:
-      - sb-writer
       - sb-public
       - librarian
       - git-watcher
@@ -15,32 +14,17 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d
     environment:
       - PUBLIC_HOST=${PUBLIC_HOST:?set PUBLIC_HOST}
-      - ADMIN_HOST=${ADMIN_HOST:?set ADMIN_HOST}
       - SPACE_DOMAIN_SUFFIX=${SPACE_DOMAIN_SUFFIX:?set SPACE_DOMAIN_SUFFIX}
       - VIRTUAL_HOST=${VIRTUAL_HOST:?set VIRTUAL_HOST}
       - LETSENCRYPT_HOST=${LETSENCRYPT_HOST:?set LETSENCRYPT_HOST}
       - PORT=${GATEKEEPER_PORT:-80}
     command: >-
-      /bin/sh -c "envsubst '\$$PUBLIC_HOST \$$ADMIN_HOST \$$SPACE_DOMAIN_SUFFIX' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
+      /bin/sh -c "envsubst '\$$PUBLIC_HOST \$$SPACE_DOMAIN_SUFFIX' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
     expose:
       - "80"
     networks:
       - default
       - proxy-net
-
-  sb-writer:
-    build:
-      context: .
-      dockerfile: Dockerfile.sb
-    container_name: ng-writer
-    restart: always
-    environment:
-      - PUID=1001
-      - PGID=1001
-      - SB_USER=${SB_WRITER_USER:?set SB_WRITER_USER}:${SB_WRITER_PASSWORD:?set SB_WRITER_PASSWORD}
-    volumes:
-      - ./content:/space 
-      - ./content:/content # Lua script compatibility
 
   sb-public:
     image: ghcr.io/silverbulletmd/silverbullet

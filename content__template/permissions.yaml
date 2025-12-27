@@ -1,18 +1,21 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nourgaser/ng-brain/refs/heads/main/permissions.schema.json
+
 spaces:
-  writer:
-    paths:
-      - "/"
-  
   public:
     paths:
-      - "CONFIG.md"
-      - "assets/"
       - "index.md"
 
-  alice:
-    password: "wonderland"
+  nour:
+    admin: true
+    password: "SuperSecurePass123"
+
+  ziad:
+    admin: true
+    password: "AnotherSecurePass456"
+
+  guests:
+    admin: false
+    password: "AnotherAnotherPass456"
     paths:
-      - "CONFIG.md"
-      - "assets/"
-      - "index.md"
-      - "secret/"
+      - asda_project/
+      - index.md
