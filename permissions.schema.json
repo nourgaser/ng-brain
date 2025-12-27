@@ -99,21 +99,27 @@
           "required": [
             "paths"
           ],
+          "not": {
+            "required": [
+              "password"
+            ]
+          },
           "additionalProperties": false,
           "errorMessage": {
             "required": {
               "paths": "public.paths is required"
             },
-            "additionalProperties": "public accepts only admin and paths; password is not allowed"
+            "not": "public must not have a password property",
+            "additionalProperties": "public accepts only admin and paths"
           }
         }
       },
-      "additionalProperties": {
-        "$ref": "#/$defs/space"
+      "patternProperties": {
+        "^(?!public$).*$": {
+          "$ref": "#/$defs/space"
+        }
       },
-      "errorMessage": {
-        "type": "spaces must be an object keyed by space name"
-      }
+      "additionalProperties": false
     }
   },
   "required": [
