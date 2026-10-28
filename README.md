@@ -1,3 +1,6 @@
+> [!WARNING]
+> No longer maintained! Was a cool idea and system design, and I used it for around a year, but overall I've moved on to much simpler note-taking habits and find most of the features overkill and just don't use them enough to justify maintaining this stack.
+> 
 # 🧠 ng-brain
 
 > **A self-hosted, text-first digital garden OS.**
